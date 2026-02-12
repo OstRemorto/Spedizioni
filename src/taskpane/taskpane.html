@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>Gestione Spedizioni</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 10px; background: #f3f2f1; }
+        .box { background: white; padding: 15px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 15px; }
+        h3 { margin-top: 0; font-size: 14px; color: #0078d4; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+        label { display: block; font-size: 11px; font-weight: 600; margin-top: 10px; color: #605e5c; }
+        input { width: 100%; padding: 6px; border: 1px solid #8a8886; border-radius: 2px; box-sizing: border-box; }
+        
+        /* Suggerimenti */
+        .sugg-box { position: absolute; background: white; border: 1px solid #ccc; width: 100%; max-height: 150px; overflow-y: auto; display: none; z-index: 1000; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        .sugg-item { padding: 8px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 12px; }
+        .sugg-item:hover { background-color: #e1dfdd; }
+
+        /* Lista Tappe */
+        .tappa-row { background: #fff; border-left: 4px solid #0078d4; padding: 8px; margin-bottom: 5px; position: relative; font-size: 12px; }
+        .btn-remove { position: absolute; right: 5px; top: 5px; color: #a4262c; background: none; border: none; cursor: pointer; font-weight: bold; }
+        
+        .btn-add { background: #0078d4; color: white; border: none; width: 100%; padding: 8px; margin-top: 15px; font-weight: 600; cursor: pointer; }
+        .btn-send { background: #107c10; color: white; border: none; width: 100%; padding: 12px; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 10px; }
+        .destinazione-box { display: none; background: #f8f9fa; padding: 8px; border-radius: 4px; border: 1px solid #e1e1e1; margin-top: 10px; }
+
+        .tappa-row { cursor: grab; }
+        .tappa-row:active { cursor: grabbing; }
+        .dragging { opacity: 0.5; border: 2px dashed #0078d4; }
+        textarea { font-family: inherit; padding: 6px; box-sizing: border-box; resize: none; }
+    </style>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+    <div class="box" style="background: #fff8f0; border: 1px dashed #ed7d31;">
+        <h3 style="color: #ed7d31; border-color: #ed7d31;">📂 Importa Anagrafica</h3>
+        <label>Carica file Excel (.xlsx, .csv)</label>
+        <input type="file" id="importExcel" accept=".xlsx, .xls, .csv" style="font-size: 10px;">
+        <p id="infoImport" style="font-size: 10px; color: #666; margin-top: 5px;">Nessun database caricato.</p>
+    </div>
+    <div class="box">
+        <h3>➕ Aggiungi Tappa</h3>
+        
+        <label>Vettore / Autista</label>
+        <input type="text" id="vettore" placeholder="Nome dell'autista...">
+
+        <label>Cliente (Intestatario)</label>
+        <div style="position: relative;">
+            <input type="text" id="inputCliente" placeholder="" autocomplete="off">
+            <div id="suggCliente" class="sugg-box"></div>
+        </div>
+
+        <label style="display:flex; align-items:center; margin-top: 10px; cursor:pointer; font-size: 12px;">
+            <input type="checkbox" id="checkDestinazione" style="width:auto; margin-right:8px;"> 
+            <span>Scarico in luogo diverso</span>
+        </label>
+
+        <div id="boxDestinazione" class="destinazione-box">
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                <label style="font-size: 10px;"><input type="radio" name="tipoDest" value="ricerca" checked> Cliente in lista</label>
+                <label style="font-size: 10px;"><input type="radio" name="tipoDest" value="manuale"> Cantiere (Manuale)</label>
+            </div>
+
+            <div id="uiRicercaDest">
+                <label>Cerca Destinatario</label>
+                <div style="position: relative;">
+                    <input type="text" id="inputDestinazione" placeholder="Cerca dove scaricare..." autocomplete="off">
+                    <div id="suggDestinazione" class="sugg-box"></div>
+                </div>
+            </div>
+
+            <div id="uiManualeDest" style="display: none;">
+                <label>Nome Cantiere / Destinazione</label>
+                <input type="text" id="nomeManuale" placeholder="Es: Cantiere Nuova Scuola">
+                <label>Indirizzo Completo</label>
+                <input type="text" id="indManuale" placeholder="Via, Civico, Comune">
+            </div>
+        </div>
+
+        <label>Riferimento Ordine</label>
+        <input type="text" id="inputOrdine" placeholder="Es. Ord. 450">
+
+        <label>Note / Dettagli Trasporto</label>
+        <textarea id="inputNote" rows="2" style="width:100%; border: 1px solid #8a8886; border-radius: 2px;" placeholder="Es: Sponda idraulica necessaria..."></textarea>
+
+        <button id="btnAggiungi" class="btn-add">INSERISCI TAPPA</button>
+    </div>
+
+    <div class="box">
+        <h3>📋 Riepilogo Giro (<span id="countTappe">0</span>)</h3>
+        <div id="listaContainer">
+            <em style="color:#666; font-size:12px;">Nessuna tappa aggiunta.</em>
+        </div>
+    </div>
+
+    <button id="btnCompila" class="btn-send">✍️ COMPILA APPUNTAMENTO</button>
+
+    <script src="taskpane.js"></script>
+</body>
+</html>
