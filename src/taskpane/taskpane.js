@@ -12,8 +12,12 @@ let destinazioneCorrente = null;
 let dragIdx = null;
 
 const anagraficheSalvate = inizializzaImport((clienti, destinazioni) => {
-    anagraficaClienti = clienti;
-    anagraficaDestinazioni = destinazioni;
+    if (clienti) {
+        anagraficaClienti = clienti;
+    }
+    if (destinazioni) {
+        anagraficaDestinazioni = destinazioni;
+    }
 });
 if (anagraficheSalvate.clienti) {
     anagraficaClienti = anagraficheSalvate.clienti;

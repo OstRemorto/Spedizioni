@@ -35,21 +35,14 @@
 
     <div class="box" style="background: #fff8f0; border: 1px dashed #ed7d31;">
         <h3 style="color: #ed7d31; border-color: #ed7d31;">📂 Importa Anagrafica</h3>
-        <label>Carica Excel con i fogli CLIENTI e DESTINAZIONIZ (.xlsx, .xls)</label>
+        <label for="tipoAnagraficaImport">Quale anagrafica vuoi aggiornare?</label>
+        <select id="tipoAnagraficaImport" style="width:100%; padding:6px; margin-top:5px;">
+            <option value="clienti">Clienti</option>
+            <option value="clientiZ">Destinazioni (ClientiZ)</option>
+        </select>
+        <label for="importExcel">Seleziona un file Excel (.xlsx, .xls). Verrà letto il primo foglio.</label>
         <input type="file" id="importExcel" accept=".xlsx, .xls" style="font-size: 10px;">
         <p id="infoImport" style="font-size: 10px; color: #666; margin-top: 5px;">Nessun database caricato.</p>
-        <details style="margin-top:10px;">
-            <summary style="font-size:11px; cursor:pointer;">In alternativa, incolla i dati da Excel</summary>
-            <p style="font-size:10px; color:#605e5c;">
-                In Excel seleziona e copia le colonne con intestazioni Rag. Soc., Città e Indirizzo
-                di ciascun foglio, poi incollale qui.
-            </p>
-            <label for="incollaClienti">Foglio CLIENTI</label>
-            <textarea id="incollaClienti" rows="5" style="width:100%; box-sizing:border-box;" placeholder="Rag. Soc.&#9;Città&#9;Indirizzo"></textarea>
-            <label for="incollaDestinazioni">Foglio DESTINAZIONIZ</label>
-            <textarea id="incollaDestinazioni" rows="5" style="width:100%; box-sizing:border-box;" placeholder="Rag. Soc.&#9;Città&#9;Indirizzo"></textarea>
-            <button id="btnImportaIncollati" type="button" class="btn-add">IMPORTA DATI INCOLLATI</button>
-        </details>
     </div>
     <div class="box">
         <label>Vettore</label>

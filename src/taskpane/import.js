@@ -7,11 +7,6 @@ export function inizializzaImport(onImportate) {
         fileInput.addEventListener("change", gestisciImportExcel(onImportate), false);
     }
 
-    const btnImportaIncollati = document.getElementById("btnImportaIncollati");
-    if (btnImportaIncollati) {
-        btnImportaIncollati.addEventListener("click", importaDatiIncollati(onImportate), false);
-    }
-
     const scriptSheetJs = document.querySelector('script[src*="xlsx.full.min.js"]');
     if (scriptSheetJs) {
         scriptSheetJs.addEventListener("error", () => {
@@ -67,11 +62,12 @@ function gestisciImportExcel(onImportate) {
         }
 
         if (!/\.(xlsx|xls)$/i.test(file.name)) {
-            mostraStatoImport("Seleziona un file Excel (.xlsx o .xls) con i fogli CLIENTI e DESTINAZIONIZ.", true);
+            mostraStatoImport("Seleziona un file Excel (.xlsx o .xls).", true);
             localStorage.removeItem(statoSelettoreImportKey);
             return;
         }
-        mostraStatoImport(`Lettura di "${file.name}" in corso...`);
+        const tipoImport = document.getElementById("tipoAnagraficaImport").value;
+        mostraStatoImport(`Lettura di "${file.name}" come ${tipoImport === "clienti" ? "anagrafica Clienti" : "anagrafica ClientiZ"} in corso...`);
         const reader = new FileReader();
 
         reader.onload = function(evento) {
@@ -80,27 +76,14 @@ function gestisciImportExcel(onImportate) {
                     throw new Error("La libreria Excel non è disponibile. Ricarica il pannello e riprova.");
                 }
                 const workbook = XLSX.read(new Uint8Array(evento.target.result), { type: "array" });
-                const trovaFoglio = nome => {
-                    const nomeFoglio = workbook.SheetNames.find(
-                        nomeDisponibile => nomeDisponibile.trim().toUpperCase() === nome
-                    );
-                    return nomeFoglio ? workbook.Sheets[nomeFoglio] : null;
-                };
-                const foglioClienti = trovaFoglio("CLIENTI");
-                const foglioDestinazioni = trovaFoglio("DESTINAZIONIZ");
-                if (!foglioClienti || !foglioDestinazioni) {
-                    const mancanti = [
-                        !foglioClienti && "CLIENTI",
-                        !foglioDestinazioni && "DESTINAZIONIZ"
-                    ].filter(Boolean).join(" e ");
-                    mostraStatoImport(`Nel file manca il foglio ${mancanti}. Fogli trovati: ${workbook.SheetNames.join(", ")}. Nessuna anagrafica è stata aggiornata.`, true);
-                    localStorage.removeItem(statoSelettoreImportKey);
-                    return;
+                const nomeFoglio = workbook.SheetNames[0];
+                if (!nomeFoglio) {
+                    throw new Error("Il file Excel non contiene fogli.");
                 }
 
-                const clienti = normalizzaAnagrafica(XLSX.utils.sheet_to_json(foglioClienti));
-                const destinazioni = normalizzaAnagrafica(XLSX.utils.sheet_to_json(foglioDestinazioni));
-                salvaAnagraficheImportate(clienti, destinazioni, onImportate);
+                const righe = XLSX.utils.sheet_to_json(workbook.Sheets[nomeFoglio]);
+                const anagrafica = normalizzaAnagrafica(righe);
+                salvaAnagraficaImportata(tipoImport, anagrafica, onImportate);
             } catch (errore) {
                 localStorage.removeItem(statoSelettoreImportKey);
                 mostraStatoImport(`Importazione non riuscita: ${errore.message}`, true);
@@ -116,67 +99,6 @@ function gestisciImportExcel(onImportate) {
         };
         reader.readAsArrayBuffer(file);
     };
-}
-
-function importaDatiIncollati(onImportate) {
-    return function() {
-        try {
-            const clienti = normalizzaAnagrafica(parseTsv(document.getElementById("incollaClienti").value));
-            const destinazioni = normalizzaAnagrafica(parseTsv(document.getElementById("incollaDestinazioni").value));
-            salvaAnagraficheImportate(clienti, destinazioni, onImportate);
-        } catch (errore) {
-            mostraStatoImport(`Importazione dei dati incollati non riuscita: ${errore.message}`, true);
-        }
-    };
-}
-
-function parseTsv(testo) {
-    const righe = [];
-    let riga = [];
-    let cella = "";
-    let dentroVirgolette = false;
-    const contenuto = testo.replace(/^\uFEFF/, "");
-
-    for (let i = 0; i < contenuto.length; i++) {
-        const carattere = contenuto[i];
-        if (carattere === '"' && dentroVirgolette && contenuto[i + 1] === '"') {
-            cella += '"';
-            i++;
-        } else if (carattere === '"') {
-            dentroVirgolette = !dentroVirgolette;
-        } else if (carattere === "\t" && !dentroVirgolette) {
-            riga.push(cella);
-            cella = "";
-        } else if ((carattere === "\n" || carattere === "\r") && !dentroVirgolette) {
-            riga.push(cella);
-            righe.push(riga);
-            riga = [];
-            cella = "";
-            if (carattere === "\r" && contenuto[i + 1] === "\n") i++;
-        } else {
-            cella += carattere;
-        }
-    }
-
-    if (cella || riga.length > 0) {
-        riga.push(cella);
-        righe.push(riga);
-    }
-    if (dentroVirgolette) {
-        throw new Error("Il testo incollato contiene virgolette non bilanciate.");
-    }
-    if (righe.length < 2) {
-        throw new Error("Incolla le righe di Excel includendo la riga delle intestazioni.");
-    }
-
-    const intestazioni = righe[0].map(normalizzaIntestazione);
-    return righe.slice(1).map(valori => {
-        const record = {};
-        intestazioni.forEach((intestazione, indice) => {
-            record[intestazione] = valori[indice] || "";
-        });
-        return record;
-    });
 }
 
 function normalizzaIntestazione(chiave) {
@@ -200,19 +122,24 @@ function normalizzaAnagrafica(righe) {
     }).filter(cliente => cliente.nome || cliente.via || cliente.comune);
 }
 
-function salvaAnagraficheImportate(clienti, destinazioni, onImportate) {
-    if (clienti.length === 0 || destinazioni.length === 0) {
-        throw new Error("Entrambi i fogli devono contenere righe con Rag. Soc., Città e Indirizzo. Nessuna anagrafica è stata aggiornata.");
+function salvaAnagraficaImportata(tipo, anagrafica, onImportate) {
+    if (anagrafica.length === 0) {
+        throw new Error("Il primo foglio è vuoto o non contiene righe con Rag. Soc., Città e Indirizzo. Nessuna anagrafica è stata aggiornata.");
     }
 
-    localStorage.setItem("anagraficaLogistica", JSON.stringify(clienti));
-    localStorage.setItem("anagraficaDestinazioniLogistica", JSON.stringify(destinazioni));
+    const chiave = tipo === "clienti" ? "anagraficaLogistica" : "anagraficaDestinazioniLogistica";
+    localStorage.setItem(chiave, JSON.stringify(anagrafica));
     localStorage.setItem("dataUltimoImport", new Date().toLocaleDateString());
     localStorage.removeItem(statoSelettoreImportKey);
-    onImportate(clienti, destinazioni);
-    aggiornaInterfacciaImport(clienti, destinazioni);
-    document.getElementById("incollaClienti").value = "";
-    document.getElementById("incollaDestinazioni").value = "";
+    const clientiSalvati = tipo === "clienti"
+        ? anagrafica
+        : JSON.parse(localStorage.getItem("anagraficaLogistica") || "null");
+    const destinazioniSalvate = tipo === "clientiZ"
+        ? anagrafica
+        : JSON.parse(localStorage.getItem("anagraficaDestinazioniLogistica") || "[]");
+    onImportate(clientiSalvati, destinazioniSalvate);
+    aggiornaInterfacciaImport(clientiSalvati || [], destinazioniSalvate);
+    mostraStatoImport(`${tipo === "clienti" ? "Clienti" : "ClientiZ"} importati correttamente: ${anagrafica.length} record.`);
 }
 
 function mostraStatoImport(messaggio, errore = false) {
