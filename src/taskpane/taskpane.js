@@ -10,11 +10,12 @@ let clienteCorrente = null;
 let destinazioneCorrente = null;
 let dragIdx = null;
 
+const fileInputImport = document.getElementById("importExcel");
+if (fileInputImport) {
+    fileInputImport.addEventListener("change", gestisciImportExcel, false);
+}
+
 Office.onReady((info) => {
-    const fileInput = document.getElementById("importExcel");
-    if (fileInput) {
-        fileInput.addEventListener("change", gestisciImportExcel, false);
-    }
     const scriptSheetJs = document.querySelector('script[src*="xlsx.full.min.js"]');
     if (scriptSheetJs) {
         scriptSheetJs.addEventListener("error", () => {
