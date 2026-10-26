@@ -11,14 +11,19 @@ let destinazioneCorrente = null;
 let dragIdx = null;
 
 Office.onReady((info) => {
+    const fileInput = document.getElementById("importExcel");
+    if (fileInput) {
+        fileInput.addEventListener("change", gestisciImportExcel, false);
+    }
+    const scriptSheetJs = document.querySelector('script[src*="xlsx.full.min.js"]');
+    if (scriptSheetJs) {
+        scriptSheetJs.addEventListener("error", () => {
+            mostraStatoImport("Errore: impossibile caricare la libreria Excel. Verifica la connessione e ricarica il pannello.", true);
+        });
+    }
+
     if (info.host === Office.HostType.Outlook) {
         console.log("Add-in pronto!");
-
-        // --- GESTIONE IMPORT EXCEL ---
-        const fileInput = document.getElementById("importExcel");
-        if (fileInput) {
-            fileInput.addEventListener("change", gestisciImportExcel, false);
-        }
 
         const datiSalvati = localStorage.getItem("anagraficaLogistica");
         if (datiSalvati) {
@@ -317,14 +322,18 @@ function gestisciImportExcel(e) {
     const file = e.target.files[0];
     if (!file) return;
     if (!/\.(xlsx|xls)$/i.test(file.name)) {
-        alert("Seleziona un file Excel (.xlsx o .xls) che contenga entrambi i fogli CLIENTI e DESTINAZIONIZ.");
+        mostraStatoImport("Seleziona un file Excel (.xlsx o .xls) con i fogli CLIENTI e DESTINAZIONIZ.", true);
         e.target.value = "";
         return;
     }
+    mostraStatoImport(`Lettura di "${file.name}" in corso...`);
     const reader = new FileReader();
 
     reader.onload = function(e) {
         try {
+            if (typeof XLSX === "undefined") {
+                throw new Error("La libreria Excel non è disponibile. Ricarica il pannello e riprova.");
+            }
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: "array" });
             const trovaFoglio = nome => {
@@ -340,7 +349,7 @@ function gestisciImportExcel(e) {
                     !foglioClienti && "CLIENTI",
                     !foglioDestinazioni && "DESTINAZIONIZ"
                 ].filter(Boolean).join(" e ");
-                alert(`Nel file Excel manca il foglio richiesto: ${mancanti}. Nessuna anagrafica è stata aggiornata.`);
+                mostraStatoImport(`Nel file manca il foglio ${mancanti}. Fogli trovati: ${workbook.SheetNames.join(", ")}. Nessuna anagrafica è stata aggiornata.`, true);
                 return;
             }
 
@@ -365,7 +374,7 @@ function gestisciImportExcel(e) {
             const clientiImportati = leggiAnagrafica(foglioClienti);
             const destinazioniImportate = leggiAnagrafica(foglioDestinazioni);
             if (clientiImportati.length === 0 || destinazioniImportate.length === 0) {
-                alert("Uno dei fogli CLIENTI o DESTINAZIONIZ non contiene righe utilizzabili. Nessuna anagrafica è stata aggiornata.");
+                mostraStatoImport("Uno dei fogli è vuoto o non contiene righe con le colonne Rag. Soc., Città e Indirizzo. Nessuna anagrafica è stata aggiornata.", true);
                 return;
             }
 
@@ -376,17 +385,25 @@ function gestisciImportExcel(e) {
             localStorage.setItem("dataUltimoImport", new Date().toLocaleDateString());
             aggiornaInterfacciaImport(true);
         } catch (errore) {
-            alert(`Impossibile leggere il file Excel: ${errore.message}`);
+            mostraStatoImport(`Importazione non riuscita: ${errore.message}`, true);
         }
     };
-    reader.onerror = () => alert("Errore durante la lettura del file Excel.");
+    reader.onerror = () => mostraStatoImport("Errore durante la lettura del file Excel. Riprova selezionando il file.", true);
+    reader.onabort = () => mostraStatoImport("Lettura del file Excel annullata.", true);
     reader.readAsArrayBuffer(file);
+}
+
+function mostraStatoImport(messaggio, errore = false) {
+    const info = document.getElementById("infoImport");
+    info.textContent = messaggio;
+    info.style.color = errore ? "#a4262c" : "#605e5c";
 }
 
 function aggiornaInterfacciaImport(caricato) {
     const info = document.getElementById("infoImport");
     if (caricato) {
         const data = localStorage.getItem("dataUltimoImport") || "recente";
-        info.innerHTML = `<b style="color: #107c10;">✅ Anagrafiche attive</b> Clienti: ${anagraficaClienti.length}, ClientiZ: ${anagraficaDestinazioni.length} (aggiornate al: ${data})`;
+        info.textContent = `Anagrafiche attive: Clienti ${anagraficaClienti.length}, ClientiZ ${anagraficaDestinazioni.length} (aggiornate al: ${data})`;
+        info.style.color = "#107c10";
     }
 }
