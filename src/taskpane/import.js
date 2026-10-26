@@ -1,10 +1,11 @@
-const statoSelettoreImportKey = "spedizioniStatoSelettoreImport";
-
 export function inizializzaImport(onImportate) {
-    const fileInput = document.getElementById("importExcel");
-    if (fileInput) {
-        fileInput.addEventListener("click", registraAperturaSelettore, false);
-        fileInput.addEventListener("change", gestisciImportExcel(onImportate), false);
+    const fileInputClienti = document.getElementById("importClienti");
+    if (fileInputClienti) {
+        fileInputClienti.addEventListener("change", gestisciImportExcel("clienti", onImportate), false);
+    }
+    const fileInputDestinazioni = document.getElementById("importDestinazioni");
+    if (fileInputDestinazioni) {
+        fileInputDestinazioni.addEventListener("change", gestisciImportExcel("clientiZ", onImportate), false);
     }
 
     const scriptSheetJs = document.querySelector('script[src*="xlsx.full.min.js"]');
@@ -28,52 +29,26 @@ export function inizializzaImport(onImportate) {
         mostraStatoImport(`Impossibile caricare le anagrafiche salvate: ${errore.message}`, true);
     }
 
-    mostraStatoSelettoreImport();
     return { clienti, destinazioni };
 }
 
-function registraAperturaSelettore() {
-    try {
-        localStorage.setItem(statoSelettoreImportKey, JSON.stringify({
-            fase: "aperto",
-            timestamp: Date.now()
-        }));
-        mostraStatoImport("Il clic sul selettore è arrivato all’add-in. Seleziona il file Excel.");
-    } catch (errore) {
-        mostraStatoImport(`Errore diagnostico del selettore: ${errore.message}`, true);
-    }
-}
-
-function gestisciImportExcel(onImportate) {
+function gestisciImportExcel(tipo, onImportate) {
     return function(e) {
         const file = e.target.files[0];
         if (!file) return;
 
-        try {
-            localStorage.setItem(statoSelettoreImportKey, JSON.stringify({
-                fase: "selezionato",
-                nomeFile: file.name,
-                timestamp: Date.now()
-            }));
-
-        } catch (errore) {
-            mostraStatoImport(`Impossibile registrare la selezione del file: ${errore.message}`, true);
-            return;
-        }
-
         if (!/\.(xlsx|xls)$/i.test(file.name)) {
             mostraStatoImport("Seleziona un file Excel (.xlsx o .xls).", true);
-            localStorage.removeItem(statoSelettoreImportKey);
             return;
         }
-        const tipoImport = document.getElementById("tipoAnagraficaImport").value;
-        mostraStatoImport(`Lettura di "${file.name}" come ${tipoImport === "clienti" ? "anagrafica Clienti" : "anagrafica ClientiZ"} in corso...`);
+        const etichetta = tipo === "clienti" ? "Clienti" : "ClientiZ";
+        mostraStatoImport(`Lettura di "${file.name}" (${etichetta}) in corso...`);
         const reader = new FileReader();
 
         reader.onload = function(evento) {
             try {
                 if (typeof XLSX === "undefined") {
-                    throw new Error("La libreria Excel non è disponibile. Ricarica il pannello e riprova.");
+                    throw new Error("La libreria Excel non è disponibile.");
                 }
                 const workbook = XLSX.read(new Uint8Array(evento.target.result), { type: "array" });
                 const nomeFoglio = workbook.SheetNames[0];
@@ -83,18 +58,15 @@ function gestisciImportExcel(onImportate) {
 
                 const righe = XLSX.utils.sheet_to_json(workbook.Sheets[nomeFoglio]);
                 const anagrafica = normalizzaAnagrafica(righe);
-                salvaAnagraficaImportata(tipoImport, anagrafica, onImportate);
+                salvaAnagraficaImportata(tipo, anagrafica, onImportate);
             } catch (errore) {
-                localStorage.removeItem(statoSelettoreImportKey);
                 mostraStatoImport(`Importazione non riuscita: ${errore.message}`, true);
             }
         };
         reader.onerror = () => {
-            localStorage.removeItem(statoSelettoreImportKey);
             mostraStatoImport("Errore durante la lettura del file Excel. Riprova selezionando il file.", true);
         };
         reader.onabort = () => {
-            localStorage.removeItem(statoSelettoreImportKey);
             mostraStatoImport("Lettura del file Excel annullata.", true);
         };
         reader.readAsArrayBuffer(file);
@@ -128,46 +100,31 @@ function salvaAnagraficaImportata(tipo, anagrafica, onImportate) {
     }
 
     const chiave = tipo === "clienti" ? "anagraficaLogistica" : "anagraficaDestinazioniLogistica";
-    localStorage.setItem(chiave, JSON.stringify(anagrafica));
-    localStorage.setItem("dataUltimoImport", new Date().toLocaleDateString());
-    localStorage.removeItem(statoSelettoreImportKey);
-    const clientiSalvati = tipo === "clienti"
-        ? anagrafica
-        : JSON.parse(localStorage.getItem("anagraficaLogistica") || "null");
-    const destinazioniSalvate = tipo === "clientiZ"
-        ? anagrafica
-        : JSON.parse(localStorage.getItem("anagraficaDestinazioniLogistica") || "[]");
-    onImportate(clientiSalvati, destinazioniSalvate);
-    aggiornaInterfacciaImport(clientiSalvati || [], destinazioniSalvate);
-    mostraStatoImport(`${tipo === "clienti" ? "Clienti" : "ClientiZ"} importati correttamente: ${anagrafica.length} record.`);
+    try {
+        localStorage.setItem(chiave, JSON.stringify(anagrafica));
+        localStorage.setItem("dataUltimoImport", new Date().toLocaleDateString());
+        const clientiSalvati = tipo === "clienti"
+            ? anagrafica
+            : JSON.parse(localStorage.getItem("anagraficaLogistica") || "null");
+        const destinazioniSalvate = tipo === "clientiZ"
+            ? anagrafica
+            : JSON.parse(localStorage.getItem("anagraficaDestinazioniLogistica") || "[]");
+        onImportate(clientiSalvati, destinazioniSalvate);
+        aggiornaInterfacciaImport(clientiSalvati || [], destinazioniSalvate);
+        mostraStatoImport(`${tipo === "clienti" ? "Clienti" : "ClientiZ"} importati correttamente: ${anagrafica.length} record.`);
+    } catch (errore) {
+        if (errore.name === "QuotaExceededError") {
+            mostraStatoImport("Il browser non ha spazio sufficiente per salvare l’anagrafica. Il file è stato letto, ma i dati non sono stati salvati.", true);
+            return;
+        }
+        throw errore;
+    }
 }
 
 function mostraStatoImport(messaggio, errore = false) {
     const info = document.getElementById("infoImport");
     info.textContent = messaggio;
     info.style.color = errore ? "#a4262c" : "#605e5c";
-}
-
-function mostraStatoSelettoreImport() {
-    const valore = localStorage.getItem(statoSelettoreImportKey);
-    if (!valore) return;
-
-    try {
-        const stato = JSON.parse(valore);
-        if (Date.now() - stato.timestamp > 5 * 60 * 1000) {
-            localStorage.removeItem(statoSelettoreImportKey);
-            return;
-        }
-
-        if (stato.fase === "selezionato") {
-            mostraStatoImport(`Outlook ha riaperto il pannello durante l’importazione di "${stato.nomeFile}". Il file è stato selezionato, ma la lettura non è arrivata a termine.`, true);
-        } else {
-            mostraStatoImport("Il clic sul selettore è stato ricevuto, ma non è arrivato l’evento di scelta del file. Potrebbe essere stata annullata la finestra oppure Outlook ha ricaricato il pannello.", true);
-        }
-    } catch (errore) {
-        localStorage.removeItem(statoSelettoreImportKey);
-        mostraStatoImport(`Stato diagnostico non leggibile: ${errore.message}`, true);
-    }
 }
 
 function aggiornaInterfacciaImport(clienti, destinazioni) {
