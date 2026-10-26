@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - master
+      - Spedizioni
   workflow_dispatch:
 
 permissions:
