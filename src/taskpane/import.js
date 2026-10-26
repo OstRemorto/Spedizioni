@@ -55,7 +55,7 @@ function gestisciImportExcel(onImportate) {
                 nomeFile: file.name,
                 timestamp: Date.now()
             }));
-            e.target.value = "";
+
         } catch (errore) {
             mostraStatoImport(`Impossibile registrare la selezione del file: ${errore.message}`, true);
             return;
