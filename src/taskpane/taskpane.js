@@ -316,14 +316,25 @@ function compilaAppuntamentoAperto() {
 function gestisciImportExcel(e) {
     const file = e.target.files[0];
     if (!file) return;
+    if (!/\.(xlsx|xls)$/i.test(file.name)) {
+        alert("Seleziona un file Excel (.xlsx o .xls) che contenga entrambi i fogli CLIENTI e DESTINAZIONIZ.");
+        e.target.value = "";
+        return;
+    }
     const reader = new FileReader();
 
     reader.onload = function(e) {
         try {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: "array" });
-            const foglioClienti = workbook.Sheets.CLIENTI;
-            const foglioDestinazioni = workbook.Sheets.DESTINAZIONIZ;
+            const trovaFoglio = nome => {
+                const nomeFoglio = workbook.SheetNames.find(
+                    nomeDisponibile => nomeDisponibile.trim().toUpperCase() === nome
+                );
+                return nomeFoglio ? workbook.Sheets[nomeFoglio] : null;
+            };
+            const foglioClienti = trovaFoglio("CLIENTI");
+            const foglioDestinazioni = trovaFoglio("DESTINAZIONIZ");
             if (!foglioClienti || !foglioDestinazioni) {
                 const mancanti = [
                     !foglioClienti && "CLIENTI",
