@@ -109,6 +109,7 @@ function aggiungiTappa() {
     const quantita = {};
     for (const [campo, etichetta] of [
         ["inputCommerciale", "Commerciale"],
+        ["inputLamiere", "Lamiere"],
         ["inputTravi", "Travi"],
         ["inputPiastre", "Piastre"]
     ]) {
@@ -155,6 +156,7 @@ function aggiungiTappa() {
 function resetCampi() {
     document.getElementById("tipoTappa").value = "consegna";
     document.getElementById("inputCommerciale").value = "0";
+    document.getElementById("inputLamiere").value = "0";
     document.getElementById("inputTravi").value = "0";
     document.getElementById("inputPiastre").value = "0";
     document.getElementById("inputNote").value = "";
@@ -198,7 +200,7 @@ function renderizzaLista() {
                 <span style="color:#999; margin-right:5px;">☰</span>
                 <b>${posizione+1}. ${t.destinazione}</b><br>
                 <small>📍 ${t.indirizzo}</small><br>
-                <small style="color:#0078d4;">📦 Comm. ${t.commerciale || 0} | Travi ${t.travi || 0} | Piastre ${t.piastre || 0} | 📝 ${t.note}</small>
+                <small style="color:#0078d4;">📦 Comm. ${t.commerciale || 0} | Lamiere ${t.lamiere || 0} | Travi ${t.travi || 0} | Piastre ${t.piastre || 0} | 📝 ${t.note}</small>
             `;
             div.ondragstart = () => { div.classList.add('dragging'); dragIdx = i; };
             div.ondragend = () => div.classList.remove('dragging');
@@ -245,6 +247,12 @@ function caricaDatiEsistenti() {
                         : "consegna";
                     for (let i = 1; i < righe.length; i++) {
                         const c = righe[i].querySelectorAll("td");
+                        if (
+                            righe[i].dataset.firmaOperatore === "true" ||
+                            (c.length > 0 && c[0].innerText.trim().toLowerCase().startsWith("firma operatore:"))
+                        ) {
+                            continue;
+                        }
                         if (c.length >= 5) {
                             const destB = c[1].querySelector("b") ? c[1].querySelector("b").innerText : c[1].innerText;
                             const contoB = c[1].querySelector("i") ? c[1].querySelector("i").innerText.replace("(Fattura a: ", "").replace(")", "") : destB;
@@ -254,13 +262,21 @@ function caricaDatiEsistenti() {
                                 intestatario: contoB,
                                 indirizzo: c[2].innerText
                             };
-                            if (c.length >= 7) {
+                            if (c.length >= 8) {
+                                tappa.commerciale = (c[3].innerText.match(/☐/g) || []).length;
+                                tappa.lamiere = (c[4].innerText.match(/☐/g) || []).length;
+                                tappa.travi = (c[5].innerText.match(/☐/g) || []).length;
+                                tappa.piastre = (c[6].innerText.match(/☐/g) || []).length;
+                                tappa.note = c[7].innerText;
+                            } else if (c.length >= 7) {
                                 tappa.commerciale = (c[3].innerText.match(/☐/g) || []).length;
                                 tappa.travi = (c[4].innerText.match(/☐/g) || []).length;
                                 tappa.piastre = (c[5].innerText.match(/☐/g) || []).length;
+                                tappa.lamiere = 0;
                                 tappa.note = c[6].innerText;
                             } else {
                                 tappa.commerciale = 0;
+                                tappa.lamiere = 0;
                                 tappa.travi = 0;
                                 tappa.piastre = 0;
                                 tappa.note = c[4].innerText;
@@ -290,18 +306,33 @@ function compilaAppuntamentoAperto() {
         const titolo = tipo === "consegna" ? "CONSEGNE" : "RITIRI";
         const colore = tipo === "consegna" ? "#0078d4" : "#107c10";
         html += `<h3 style="color:${colore};">${titolo}</h3>
-            <table data-tipo="${tipo}" border="1" cellpadding="8" style="border-collapse:collapse; width:100%; font-size:11pt;">
-            <tr style="background:#f3f2f1;"><th>#</th><th>Destinazione</th><th>Indirizzo</th><th>Commerciale</th><th>Travi</th><th>Piastre</th><th>Note</th></tr>`;
+            <table data-tipo="${tipo}" border="1" cellpadding="8" style="border-collapse:collapse; width:100%; table-layout:fixed; font-size:11pt;">
+            <colgroup>
+            <col><col><col>
+            <col style="width:4.8cm;" width="181">
+            <col style="width:4.8cm;" width="181">
+            <col style="width:4.8cm;" width="181">
+            <col style="width:4.8cm;" width="181">
+            <col>
+            </colgroup>
+            <tr style="background:#f3f2f1;"><th>#</th><th>Destinazione</th><th>Indirizzo</th><th>Comm.</th><th>Lamiere</th><th>Travi</th><th>Piastre</th><th>Note</th></tr>`;
 
         tappe.forEach((t, i) => {
             const nota = t.intestatario !== t.destinazione ? `<br><i style="font-size:10px;">(Fattura a: ${t.intestatario})</i>` : "";
             const caselle = quantita => Array.from({ length: quantita || 0 }, () => "&#9744;").join(" ");
             html += `<tr><td></td><td><b>${t.destinazione}</b>${nota}</td><td>${t.indirizzo}</td>
                 <td style="font-family:'Segoe UI Symbol',sans-serif;">${caselle(t.commerciale)}</td>
+                <td style="font-family:'Segoe UI Symbol',sans-serif;">${caselle(t.lamiere)}</td>
                 <td style="font-family:'Segoe UI Symbol',sans-serif;">${caselle(t.travi)}</td>
                 <td style="font-family:'Segoe UI Symbol',sans-serif;">${caselle(t.piastre)}</td>
                 <td>${t.note}</td></tr>`;
         });
+        if (tipo === "consegna") {
+            html += `<tr data-firma-operatore="true">
+                <td colspan="3" style="height:0.5cm; vertical-align:middle; font-weight:bold;">firma operatore:</td>
+                <td></td><td></td><td></td><td></td><td></td>
+            </tr>`;
+        }
         html += "</table>";
     });
 
